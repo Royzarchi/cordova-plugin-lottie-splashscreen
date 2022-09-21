@@ -1,3 +1,4 @@
+import Cordova
 import Lottie
 
 @objc(LottieSplashScreen) class LottieSplashScreen: CDVPlugin {
@@ -87,7 +88,6 @@ import Lottie
                 processInvalidURLError(error: error)
             }
 
-            animationViewContainer?.addSubview(animationView!)
             parentView?.addSubview(animationViewContainer!)
 
             let cancelOnTap = commandDelegate?.settings["LottieCancelOnTap".lowercased()] as? NSString ?? "false"
@@ -115,15 +115,20 @@ import Lottie
         let parentView = viewController.view
         parentView?.isUserInteractionEnabled = false
 
-        animationViewContainer = UIView(frame: (parentView?.bounds)!)
+        animationViewContainer = UIView()
         animationViewContainer?.layer.zPosition = 1
+        animationViewContainer?.translatesAutoresizingMaskIntoConstraints = false
 
-        let backgroundColor = getUIModeDependentPreference(basePreferenceName: "LottieBackgroundColor", defaultValue: "#ffffff")
-
+        let backgroundColor = commandDelegate?.settings["LottieBackgroundColor".lowercased()] as? String
         animationViewContainer?.autoresizingMask = [
             .flexibleWidth, .flexibleHeight, .flexibleTopMargin, .flexibleLeftMargin, .flexibleBottomMargin, .flexibleRightMargin
         ]
         animationViewContainer?.backgroundColor = UIColor(hex: backgroundColor)
+        
+        parentView?.addConstraint(NSLayoutConstraint(item: animationViewContainer, attribute: .top, relatedBy: .equal, toItem: parentView, attribute: .top, multiplier: 1.0, constant: 0.0))
+        parentView?.addConstraint(NSLayoutConstraint(item: animationViewContainer, attribute: .leading, relatedBy: .equal, toItem: parentView, attribute: .leading, multiplier: 1.0, constant: 0.0))
+        parentView?.addConstraint(NSLayoutConstraint(item: parentView, attribute: .bottom, relatedBy: .equal, toItem: animationViewContainer, attribute: .bottom, multiplier: 1.0, constant: 0.0))
+        parentView?.addConstraint(NSLayoutConstraint(item: parentView, attribute: .trailing, relatedBy: .equal, toItem: animationViewContainer, attribute: .trailing, multiplier: 1.0, constant: 0.0))
     }
 
     private func createAnimationView(location: String? = nil, remote: Bool? = nil, width: Int? = nil, height: Int? = nil) throws {
@@ -131,7 +136,17 @@ import Lottie
         if location != nil {
             animationLocation = location!
         } else {
-            animationLocation = getUIModeDependentPreference(basePreferenceName: "LottieAnimationLocation")
+            if #available(iOS 12.0, *) {
+                if viewController.traitCollection.userInterfaceStyle == .dark {
+                    animationLocation = commandDelegate?.settings["LottieAnimationLocationDark".lowercased()] as? String ?? ""
+                } else {
+                    animationLocation = commandDelegate?.settings["LottieAnimationLocationLight".lowercased()] as? String ?? ""
+                }
+            }
+
+            if animationLocation.isEmpty {
+                animationLocation = commandDelegate?.settings["LottieAnimationLocation".lowercased()] as? String ?? ""
+            }
         }
 
         if isRemote(remote: remote) {
@@ -149,6 +164,8 @@ import Lottie
             animationLocation = Bundle.main.bundleURL.appendingPathComponent(animationLocation).path
             animationView = AnimationView(filePath: animationLocation)
         }
+        
+        animationViewContainer?.addSubview(animationView!)
 
         calculateAnimationSize(width: width, height: height)
 
@@ -169,18 +186,28 @@ import Lottie
 
         let useFullScreen = (commandDelegate?.settings["LottieFullScreen".lowercased()] as? NSString ?? "false").boolValue
         if useFullScreen {
-            var autoresizingMask: UIView.AutoresizingMask = [
-                .flexibleTopMargin, .flexibleLeftMargin, .flexibleBottomMargin, .flexibleRightMargin
-            ]
+            if let parent = animationViewContainer {
+                animationView?.topAnchor.constraint(equalTo: parent.topAnchor).isActive = true
+                animationView?.bottomAnchor.constraint(equalTo: parent.bottomAnchor).isActive = true
+                animationView?.leftAnchor.constraint(equalTo: parent.leftAnchor).isActive = true
+                animationView?.rightAnchor.constraint(equalTo: parent.rightAnchor).isActive = true
+            } else {
+                var autoresizingMask: UIView.AutoresizingMask = [
+                    .flexibleTopMargin, .flexibleLeftMargin, .flexibleBottomMargin, .flexibleRightMargin
+                ]
 
-            let portrait =
-                UIApplication.shared.statusBarOrientation == UIInterfaceOrientation.portrait ||
-                UIApplication.shared.statusBarOrientation == UIInterfaceOrientation.portraitUpsideDown
-            autoresizingMask.insert(portrait ? .flexibleWidth : .flexibleHeight)
-
-            animationView?.autoresizingMask = autoresizingMask
-            animationWidth = fullScreenzSize.width
-            animationHeight = fullScreenzSize.height
+                let portrait =
+                    UIApplication.shared.statusBarOrientation == UIInterfaceOrientation.portrait ||
+                    UIApplication.shared.statusBarOrientation == UIInterfaceOrientation.portraitUpsideDown
+                autoresizingMask.insert(portrait ? .flexibleWidth : .flexibleHeight)
+                
+                animationView?.autoresizingMask = autoresizingMask
+                animationWidth = fullScreenzSize.width
+                animationHeight = fullScreenzSize.height
+                
+                animationView?.frame = CGRect(x: 0, y: 0, width: animationWidth, height: animationHeight)
+                animationView?.center = CGPoint(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY)
+            }
         } else {
             animationView?.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin, .flexibleBottomMargin, .flexibleRightMargin]
 
@@ -202,9 +229,9 @@ import Lottie
                     ? height! :
                     Int(commandDelegate?.settings["LottieHeight".lowercased()] as? String ?? "200")!)
             }
+            animationView?.frame = CGRect(x: 0, y: 0, width: animationWidth, height: animationHeight)
+            animationView?.center = CGPoint(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY)
         }
-        animationView?.frame = CGRect(x: 0, y: 0, width: animationWidth, height: animationHeight)
-        animationView?.center = CGPoint(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY)
     }
 
     private func playAnimation() {
@@ -266,22 +293,6 @@ import Lottie
             name: UIDevice.orientationDidChangeNotification,
             object: nil
         )
-    }
-
-    private func getUIModeDependentPreference(basePreferenceName: String, defaultValue: String = "") -> String {
-        var preferenceValue = ""
-        if #available(iOS 12.0, *) {
-            if viewController.traitCollection.userInterfaceStyle == .dark {
-                preferenceValue = commandDelegate?.settings[(basePreferenceName + "Dark").lowercased()] as? String ?? defaultValue
-            } else {
-                preferenceValue = commandDelegate?.settings[(basePreferenceName + "Light").lowercased()] as? String ?? defaultValue
-            }
-        }
-
-        if preferenceValue.isEmpty {
-            preferenceValue = commandDelegate?.settings[basePreferenceName.lowercased()] as? String ?? defaultValue
-        }
-        return preferenceValue
     }
 
     @objc private func deviceOrientationChanged() {
