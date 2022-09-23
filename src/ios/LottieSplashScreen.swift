@@ -177,6 +177,7 @@ import Lottie
         animationView?.animationSpeed = 1
         animationView?.autoresizesSubviews = true
         animationView?.backgroundBehavior = .pauseAndRestore
+        animationView?.translatesAutoresizingMaskIntoConstraints = false
     }
 
     private func calculateAnimationSize(width: Int? = nil, height: Int? = nil) {
