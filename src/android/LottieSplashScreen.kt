@@ -181,10 +181,7 @@ class LottieSplashScreen : CordovaPlugin() {
                 )
                 animationView.imageAssetsFolder = preferences.getString(
                     "LottieImagesLocation",
-                    animationLocation.substring(
-                        0,
-                        animationLocation.lastIndexOf('/')
-                    )
+                    animationLocation
                 )
             }
         }
@@ -217,7 +214,7 @@ class LottieSplashScreen : CordovaPlugin() {
         val color = ColorHelper.parseColor(
             getUIModeDependentPreference(
                 "LottieBackgroundColor",
-                "#ffffff"
+                "#000000"
             )
         )
         animationView.setBackgroundColor(color)
